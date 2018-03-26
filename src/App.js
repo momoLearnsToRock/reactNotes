@@ -1,4 +1,5 @@
-//new changes in the VSBranch
+//changes commited to bash branch
+//changed in web-ui for master branch
 
 import React, { Component } from 'react';
 import './App.css';
@@ -24,16 +25,71 @@ class App extends Component {
         this.app = firebase.initializeApp(DB_CONFIG);
         this.database = this.app.database().ref().child('notes');
 
+
         ////authentication
-        firebase.auth().signInAnonymously().catch(function (error) {
+
+        ////anonymous authentication
+        //firebase.auth().signInAnonymously().catch(function (error) {
+        //    // Handle Errors here.
+        //    var errorCode = error.code;
+        //    var errorMessage = error.message;
+        //    console.log("Authentication error " + errorCode + ", " + errorMessage);
+        //    // ...
+        //});
+
+        ////GitHub authentication
+        //var provider = firebase.auth.GithubAuthProvider();
+
+        const auth = firebase.auth();
+        var provider = new firebase.auth.GoogleAuthProvider();
+
+        firebase.auth().signInWithPopup(provider).then(function (result) {
+            // This gives you a Google Access Token. You can use it to access the Google API.
+            var token = result.credential.accessToken;
+            // The signed-in user info.
+            var user = result.user;
+            // ...
+        }).catch(function (error) {
             // Handle Errors here.
             var errorCode = error.code;
             var errorMessage = error.message;
-            console.log("Authentication error " + errorCode + ", " + errorMessage);
+            // The email of the user's account used.
+            var email = error.email;
+            // The firebase.auth.AuthCredential type that was used.
+            var credential = error.credential;
             // ...
         });
+
+
         firebase.auth().onAuthStateChanged(function (user) {
+            debugger;
             if (user) {
+                //is made once and outside those event handlers
+                this.database
+                    //.orderByChild('noteContents') //just for laughs
+                    //.endAt('note')
+                    //.limitToFirst(2)
+                    .on('child_added', snap => {
+                        var previousnotes = this.state.notes; 
+                        //snap.ref.on('value', s => { //for the time being this code does not work, my guess is that some how it is in another scope
+                        //    //debugger;
+                        //    const prevnotes = this.state.notes; //intresting that there are two eventHandlers but the copy of the array
+                        //    if (!!s.val()) {
+                        //        for (let i = 0; i < prevnotes.length; i++) {
+                        //            if (prevnotes[i].id == s.key) {
+                        //                prevnotes[i].noteContents = s.val().noteContents;
+                        //                break;
+                        //            }
+                        //        }
+                        //        this.setState({ notes: prevnotes });
+                        //    }
+                        //})
+                        previousnotes.push({
+                            id: snap.key,
+                            noteContents: snap.val().noteContents
+                        });
+                        this.setState({ notes: previousnotes })
+                    })
                 // User is signed in.
                 var isAnonymous = user.isAnonymous;
                 var uid = user.uid;
@@ -44,6 +100,12 @@ class App extends Component {
             }
         }
         );
+
+        setTimeout(function () {
+            firebase.auth().signOut().then(function () {
+                console.log("signed out!");
+            });
+        }, 20000);
 
         ////playing with persistency
         // since I can connect from multiple devices or browser tabs, we store each connection instance separately
@@ -74,30 +136,8 @@ class App extends Component {
     componentWillMount() {
         const previousnotes = this.state.notes; //intresting that there are two eventHandlers but the copy of the array
         //is made once and outside those event handlers
-        this.database
-            //.orderByChild('noteContents') //just for laughs
-            //.endAt('note')
-            //.limitToFirst(2)
-            .on('child_added', snap => {
-                snap.ref.on('value', s => {
-                    debugger;
-                    const prevnotes = this.state.notes; //intresting that there are two eventHandlers but the copy of the array
-                    if (!!s.val()) {
-                        for (let i = 0; i < prevnotes.length; i++) {
-                            if (prevnotes[i].id == s.key) {
-                                prevnotes[i].noteContents = s.val().noteContents;
-                                break;
-                            }
-                        }
-                        this.setState({ notes: prevnotes });
-                    }
-                })
-                previousnotes.push({
-                    id: snap.key,
-                    noteContents: snap.val().noteContents
-                });
-                this.setState({ notes: previousnotes })
-            })
+
+
         this.database.on('child_removed', snap => {
             for (var i = 0; i < previousnotes.length; i++)
                 if (previousnotes[i].id == snap.key) {
@@ -121,7 +161,7 @@ class App extends Component {
     }
     insertNote(noteText) {
         let insr = this.database.push({ noteContents: noteText });
-        setTimeout(() => { insr.set({ noteContents: 'notedAgain ' + new Date() }) }, 4000);
+        //setTimeout(() => { insr.set({ noteContents: 'notedAgain ' + new Date() }) }, 4000);
     }
     removeNote(id) {
         this.database.child(id).remove();
